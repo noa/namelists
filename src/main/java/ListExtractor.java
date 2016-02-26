@@ -4,6 +4,7 @@ import edu.jhu.Helper;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,18 +25,19 @@ import org.wikidata.wdtk.datamodel.interfaces.StatementGroup;
 import org.wikidata.wdtk.datamodel.interfaces.Value;
 import org.wikidata.wdtk.datamodel.interfaces.ValueSnak;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.base.Charsets;
+import com.google.common.collect.Iterables;
+import com.google.common.io.Files;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.base.Splitter;
 
 public class ListExtractor implements EntityDocumentProcessor {
     int nprocessed = 0;
 
-    static final ImmutableMap<String, String> type_label_map =
-        new ImmutableMap.Builder<String,String>()
-
-        .build();
+    Map<String, String> type_label_map = Maps.newHashMap();
+    Set<String> lang_set = Sets.newHashSet();
 
     class GazetteerEntry {
         public ItemIdValue id;
@@ -56,23 +58,47 @@ public class ListExtractor implements EntityDocumentProcessor {
     HashMap<String, ArrayList<GazetteerEntry>> gaz_entries = Maps.newHashMap();
     Set<ItemIdValue> type_set = Sets.newHashSet();
 
-    public SimpleGazetteerExtractor() {
-        language_codes.add("en");
+    public ListExtractor(String type_path, String lang_path) throws IOException {
+        readEntityTypes(type_path);
+        readLangTypes(lang_path);
 
-        int ntypes = 0;
-        for(String id : SimpleGazetteerExtractor.type_label_map.keySet()) {
-            type_set.add( Datamodel.makeWikidataItemIdValue(id) );
-            ntypes ++;
-        }
-        System.out.println(ntypes + " types");
+        System.exit(0);
+        
+        // language_codes.add("en");
+
+        // int ntypes = 0;
+        // for(String id : SimpleGazetteerExtractor.type_label_map.keySet()) {
+        //     type_set.add( Datamodel.makeWikidataItemIdValue(id) );
+        //     ntypes ++;
+        // }
+        // System.out.println(ntypes + " types");
         //System.exit(1);
     }
 
     public static void main(String[] args) throws IOException {
         Helper.configureLogging();
-        SimpleGazetteerExtractor processor = new SimpleGazetteerExtractor();
+        ListExtractor processor = new ListExtractor("wiki_types.txt", "wiki_lang.txt");
         Helper.processEntitiesFromWikidataDump(processor);
         processor.writeFinalResults();
+    }
+
+    public void readEntityTypes(String filePath) throws IOException {
+        final File file = new File(filePath);
+        for(String line : Files.readLines(file, Charsets.UTF_8)) {
+            Iterable<String> iter = Splitter.on(" ").trimResults().omitEmptyStrings().split(line);
+            String typeId = Iterables.getFirst(iter, "NIL");
+            String typeStr = Iterables.getLast(iter, "NIL");
+            this.type_label_map.put(typeId, typeStr);
+        }
+    }
+
+    public void readLangTypes(String filePath) throws IOException {
+        final File file = new File(filePath);
+        for(String line : Files.readLines(file, Charsets.UTF_8)) {
+            Iterable<String> iter = Splitter.on(" ").trimResults().omitEmptyStrings().split(line);
+            String lang = Iterables.getFirst(iter, "NIL");
+            this.lang_set.add(lang);
+        }
     }
 
     public boolean matchSet(StatementGroup statementGroup, Set<ItemIdValue> set) {
@@ -147,7 +173,7 @@ public class ListExtractor implements EntityDocumentProcessor {
             int total = 0;
             for(String key : gaz_entries.keySet()) {
                 int size = gaz_entries.get(key).size();
-                String label = SimpleGazetteerExtractor.type_label_map.get(key);
+                String label = this.type_label_map.get(key);
                 assert( label != null );
                 if(label == null) {
                     System.out.println("Missing key: " + key);
@@ -184,7 +210,7 @@ public class ListExtractor implements EntityDocumentProcessor {
             try (PrintStream out = new PrintStream(Helper.openExampleFileOuputStream(code + "_gazetteer.txt"))) {
 
                 for(String key : gaz_entries.keySet()) {
-                    printGaz(out, gaz_entries.get(key), SimpleGazetteerExtractor.type_label_map.get(key));
+                    printGaz(out, gaz_entries.get(key), this.type_label_map.get(key));
                 }
 
             } catch (IOException e) {
@@ -196,7 +222,7 @@ public class ListExtractor implements EntityDocumentProcessor {
 
                 for(String key : gaz_entries.keySet()) {
                     //printGaz(out, gaz_entries.get(key), SimpleGazetteerExtractor.type_label_map.get(key));
-                    out.println(SimpleGazetteerExtractor.type_label_map.get(key) + " " + gaz_entries.get(key).size());
+                    out.println(this.type_label_map.get(key) + " " + gaz_entries.get(key).size());
                 }
 
             } catch (IOException e) {
