@@ -38,6 +38,8 @@ CODE is a Wikipedia language code.
 
 # Sample results
 
+Total counts for each language for the sample entity types in the provided `wiki_types.txt`:
+
 ```bash
 $ find . -name "*_gazetteer.txt" | xargs wc --lines | sort -k1,1nr
  23140262 total
