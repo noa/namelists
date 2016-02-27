@@ -33,19 +33,29 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.base.Splitter;
 
-public class ListExtractor implements EntityDocumentProcessor {
-    int nprocessed = 0;
+import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.CmdLineException;
 
-    Map<String, String> type_label_map = Maps.newHashMap();
-    Set<String> lang_set = Sets.newHashSet();
+public class ListExtractor implements EntityDocumentProcessor {
+
+    @Option(name="-typePath", usage="File with entity types")
+    private String type_path = "wiki_types.txt";
+
+    @Option(name="-langPath", usage="File with languages")
+    private String lang_path = "wiki_lang.txt";
 
     class GazetteerEntry {
         public ItemIdValue id;
+
         public String name;
         public SiteLink link;
         public List<MonolingualTextValue> aliases;
 
-        public GazetteerEntry(ItemIdValue id, String name,  List<MonolingualTextValue> aliases, SiteLink link) {
+        public GazetteerEntry(ItemIdValue id,
+                              String name,
+                              List<MonolingualTextValue> aliases,
+                              SiteLink link) {
             this.id = id;
             this.name = name;
             this.aliases = aliases;
@@ -54,50 +64,59 @@ public class ListExtractor implements EntityDocumentProcessor {
     }
 
     Map<String, Long> inlinks = Maps.newHashMap();
+    int nprocessed = 0;
+    Map<String, String> type_label_map = Maps.newHashMap();
+    Set<String> lang_set = Sets.newHashSet();
     List<String> language_codes = Lists.newArrayList();
-    HashMap<String, ArrayList<GazetteerEntry>> gaz_entries = Maps.newHashMap();
+    //HashMap<String, ArrayList<GazetteerEntry>> gaz_entries = Maps.newHashMap();
+
+    // lang -> entity type -> list of names
+    HashMap<String, HashMap<String, ArrayList<GazetteerEntry>>> multilinual_entries = Maps.newHashMap();
     Set<ItemIdValue> type_set = Sets.newHashSet();
 
-    public ListExtractor(String type_path, String lang_path) throws IOException {
+    public ListExtractor() throws IOException {
         readEntityTypes(type_path);
         readLangTypes(lang_path);
-
-        System.exit(0);
-        
-        // language_codes.add("en");
-
-        // int ntypes = 0;
-        // for(String id : SimpleGazetteerExtractor.type_label_map.keySet()) {
-        //     type_set.add( Datamodel.makeWikidataItemIdValue(id) );
-        //     ntypes ++;
-        // }
-        // System.out.println(ntypes + " types");
-        //System.exit(1);
     }
 
     public static void main(String[] args) throws IOException {
+        ListExtractor processor = new ListExtractor();
+        final CmdLineParser parser = new CmdLineParser(processor);
+        parser.setUsageWidth(80);
+        try {
+            parser.parseArgument(args);
+        } catch( CmdLineException e ) {
+            System.err.println(e.getMessage());
+            parser.printUsage(System.err);
+            return;
+        }
         Helper.configureLogging();
-        ListExtractor processor = new ListExtractor("wiki_types.txt", "wiki_lang.txt");
         Helper.processEntitiesFromWikidataDump(processor);
         processor.writeFinalResults();
     }
 
-    public void readEntityTypes(String filePath) throws IOException {
+    public void runMain(String[] args) throws IOException {
+
+    }
+
+    private void readEntityTypes(String filePath) throws IOException {
         final File file = new File(filePath);
         for(String line : Files.readLines(file, Charsets.UTF_8)) {
             Iterable<String> iter = Splitter.on(" ").trimResults().omitEmptyStrings().split(line);
-            String typeId = Iterables.getFirst(iter, "NIL");
-            String typeStr = Iterables.getLast(iter, "NIL");
+            String typeId = Iterables.getFirst(iter, null);
+            String typeStr = Iterables.getLast(iter, null);
             this.type_label_map.put(typeId, typeStr);
+            this.type_set.add( Datamodel.makeWikidataItemIdValue(typeId) );
         }
     }
 
-    public void readLangTypes(String filePath) throws IOException {
+    private void readLangTypes(String filePath) throws IOException {
         final File file = new File(filePath);
         for(String line : Files.readLines(file, Charsets.UTF_8)) {
             Iterable<String> iter = Splitter.on(" ").trimResults().omitEmptyStrings().split(line);
-            String lang = Iterables.getFirst(iter, "NIL");
+            String lang = Iterables.getFirst(iter, null);
             this.lang_set.add(lang);
+            this.language_codes.add(lang);
         }
     }
 
@@ -116,7 +135,7 @@ public class ListExtractor implements EntityDocumentProcessor {
         // Print status once in a while
         if (this.nprocessed % 100000 == 0) {
             printStatus();
-		}
+        }
         this.nprocessed++;
 
         Map<String, Boolean> type_keep = Maps.newHashMap();
@@ -143,19 +162,27 @@ public class ListExtractor implements EntityDocumentProcessor {
             if (!type_keep.get(type)) continue;
 
             Map<String, MonolingualTextValue> labels = itemDocument.getLabels();
-            if ( !labels.containsKey("en") ) continue;
-            String name = labels.get("en").getText();
-            SiteLink link = itemDocument.getSiteLinks().get("enwiki");
-            if (link == null) continue;
-            
-            GazetteerEntry entry = new GazetteerEntry(itemDocument.getItemId(), name, itemDocument.getAliases().get("en"), link);
-            
-            if(gaz_entries.containsKey(type)){
-                gaz_entries.get(type).add(entry);
-            } else {
-                ArrayList<GazetteerEntry> es = Lists.newArrayList(entry);
-                gaz_entries.put(type, es);
+            for(String lang : labels.keySet()) {
+                String name = labels.get(lang).getText();
+                // SiteLink link = itemDocument.getSiteLinks().get(lang + "wiki");
+                // if (link == null) continue;
+                GazetteerEntry entry = new GazetteerEntry(itemDocument.getItemId(), name, itemDocument.getAliases().get(lang));
             }
+
+            // Map<String, MonolingualTextValue> labels = itemDocument.getLabels();
+            // if ( !labels.containsKey("en") ) continue;
+            // String name = labels.get("en").getText();
+            // SiteLink link = itemDocument.getSiteLinks().get("enwiki");
+            // if (link == null) continue;
+
+            // GazetteerEntry entry = new GazetteerEntry(itemDocument.getItemId(), name, itemDocument.getAliases().get("en"), link);
+
+            // if(gaz_entries.containsKey(type)){
+            //     gaz_entries.get(type).add(entry);
+            // } else {
+            //     ArrayList<GazetteerEntry> es = Lists.newArrayList(entry);
+            //     gaz_entries.put(type, es);
+            // }
         }
     }
 
@@ -169,7 +196,7 @@ public class ListExtractor implements EntityDocumentProcessor {
      * Prints the current status to the system output.
      */
     private void printStatus() {
-        for(String code : Arrays.asList("en")) {
+        for(String code : language_codes) {
             int total = 0;
             for(String key : gaz_entries.keySet()) {
                 int size = gaz_entries.get(key).size();
