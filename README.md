@@ -22,8 +22,9 @@ languages listed in `wiki_lang.txt`, run:
 $ mvn exec:java -Dexec.mainClass="edu.jhu.ListExtractor" -Dexec.args="-typePath wiki_types.txt -langPath wiki_lang.txt"
 ```
 
-Note that before anything is downloaded, a Wikidata dump is downloaded
-to the `dumpfiles` directory, which may take a while.
+Note that before lists are extracted, a Wikidata dump is downloaded
+to the `dumpfiles` directory, which may take a while. (The dump will
+be re-used in subsequent runs.)
 
 Optionally, to get names in *all languages* use the `-allLang` flag:
 
