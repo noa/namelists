@@ -17,7 +17,7 @@
     <apacheCommonsCompressVersion>1.9</apacheCommonsCompressVersion>
     <apacheCommonsLangVersion>3.3.2</apacheCommonsLangVersion>
     <apacheHttpVersion>4.3.3</apacheHttpVersion>
-    <wdtkVersion>0.6.0</wdtkVersion>
+    <wdtkVersion>0.7.0</wdtkVersion>
     <junitVersion>4.12</junitVersion>
     <slf4jVersion>1.7.10</slf4jVersion>
   </properties>
